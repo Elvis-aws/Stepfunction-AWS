@@ -1,0 +1,24 @@
+Available Commands
+create-activity
+create-state-machine
+delete-activity
+delete-state-machine
+describe-activity
+describe-execution
+describe-state-machine
+describe-state-machine-for-execution
+get-activity-task
+get-execution-history
+list-activities
+list-executions
+list-state-machines
+list-tags-for-resource
+send-task-failure
+send-task-heartbeat
+send-task-success
+start-execution
+start-sync-execution
+stop-execution
+tag-resource
+untag-resource
+update-state-machine
