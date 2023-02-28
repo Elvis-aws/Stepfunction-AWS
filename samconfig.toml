@@ -3,7 +3,7 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "athena-glue-s3-app"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-u3oxmmrhwosp"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1q26kcfv0s3z8"
 s3_prefix = "athena-glue-s3-app"
 region = "eu-west-2"
 confirm_changeset = true

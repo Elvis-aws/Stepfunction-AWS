@@ -9,7 +9,7 @@
     "text": [
       "This serverless pattern uses AWS Athena allows to analyze data in Amazon S3 using standard SQL.", 
       "A Glue crawler creates a database table from the S3 data which is queried by Athena.", 
-      "Step Function is leveraged to query as well as process each result in this data received from Athena with the help of NextToken parameter.
+      "Step Function is leveraged to query as well as process each result in this data received from Athena with the help of NextToken parameter."
     ]
   },
   "gitHub": {
