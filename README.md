@@ -39,6 +39,9 @@ define the schema, and start querying using standard SQL. Most results are deliv
         "key3": "value3"
     }
     ```
+   aws stepfunctions start-execution --state-machine-arn EnterStateMachineARN --input "{ \"Input\": \"test\" }"
+
+
 4. Observe the logs of the step function execution to verify if all the results fetched by the Athena query is processed or not.
 
 ## Cleanup
