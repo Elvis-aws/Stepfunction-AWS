@@ -1,174 +1,161 @@
 Transform: AWS::Serverless-2016-10-31
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Sample SAM Template for Athena Querying
+Description: State Machine
 
-Parameters:
-  Database:
-    Type: String
-    Description: Enter a Database name
 
 Resources:
-
-  SFRole:
+##############################################
+################# State Machine ##############
+##############################################
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      Definition:
+        Comment: This is state machine
+        StartAt: FirstState
+        States:
+          FirstState:
+            Type: Task
+            Resource: !GetAtt Function1.Arn
+            Next: LastState
+          LastState:
+            Type: Task
+            Resource: !GetAtt Function2.Arn
+            End: true
+      LoggingConfiguration:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt LogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      RoleArn: !GetAtt StateMachineRole.Arn
+      StateMachineName: !Sub ${AWS::StackName}-statemachine
+      StateMachineType: STANDARD
+##############################################
+################## Log Group #################
+##############################################
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}-statemachine-log-group
+##############################################
+############# State Machine Role #############
+##############################################
+  StateMachineRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: 2012-10-17
         Statement:
-          -
-            Effect: "Allow"
+          - Effect: Allow
+            Action: sts:AssumeRole
             Principal:
               Service:
-                - "states.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
+                - states.amazonaws.com
       Policies:
-        - PolicyName: AthenaAccess
+        - PolicyName: !Sub ${AWS::StackName}-invoke-task-policy
           PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: 
-                  - "athena:startQueryExecution"
-                  - "athena:stopQueryExecution"
-                  - "athena:getQueryExecution"
-                  - "athena:getDataCatalog"
-                  - "athena:getQueryResults"
-                Resource: 
-                  - !Sub "arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/*"
-                  - !Sub "arn:aws:athena:${AWS::Region}:${AWS::AccountId}:datacatalog/*"
-        
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: "2012-10-17"
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
-                  - "s3:GetBucketLocation"
-                  - "s3:GetObject"
-                  - "s3:ListBucket"
-                  - "s3:ListBucketMultipartUploads"
-                  - "s3:ListMultipartUploadParts"
-                  - "s3:AbortMultipartUpload"
-                  - "s3:CreateBucket"
-                  - "s3:PutObject"
+                  - lambda:InvokeFunction
                 Resource:
-                  - !Sub "arn:aws:s3:::${AthenaQueryS3Bucket}/*"
-                  - !Sub "arn:aws:s3:::${CrawlerS3Bucket}/*"
-                  - !Sub "arn:aws:s3:::${AthenaQueryS3Bucket}"
-                  - !Sub "arn:aws:s3:::${CrawlerS3Bucket}"
-
-        - PolicyName: GlueAccess
+                  - !GetAtt Function1.Arn
+                  - !GetAtt Function2.Arn
+        - PolicyName: !Sub ${AWS::StackName}-cloud-watch-policy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
-                  - "glue:CreateDatabase"
-                  - "glue:GetDatabase"
-                  - "glue:GetDatabases"
-                  - "glue:UpdateDatabase"
-                  - "glue:DeleteDatabase"
-                  - "glue:CreateTable"
-                  - "glue:UpdateTable"
-                  - "glue:GetTable"
-                  - "glue:GetTables"
-                  - "glue:DeleteTable"
-                  - "glue:BatchDeleteTable"
-                  - "glue:BatchCreatePartition"
-                  - "glue:CreatePartition"
-                  - "glue:UpdatePartition"
-                  - "glue:GetPartition"
-                  - "glue:GetPartitions"
-                  - "glue:BatchGetPartition"
-                  - "glue:DeletePartition"
-                  - "glue:BatchDeletePartition"
-                Resource:
-                - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog"
-                - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/*"
-                - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/*"
-                - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:userDefinedFunction/*"           
-
-  StateMachine:
-    Type: AWS::Serverless::StateMachine
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutLogEvents
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: "*"
+##############################################
+################## Event Rule 1 ##############
+##############################################
+  Rule1:
+    Type: AWS::Events::Rule
     Properties:
-      Name: StateMachine
-      DefinitionUri: athenaquery.asl.json
-      DefinitionSubstitutions:
-        AthenaBucketname: !Ref AthenaQueryS3Bucket
-        CrawlerBucketname: !Ref CrawlerS3Bucket
-        DBname: !Ref MyDatabase
-      Role: !GetAtt SFRole.Arn
-
-
-  AthenaQueryS3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: "BucketOwnerFullControl"
-
-  MyRole:
-    Type: 'AWS::IAM::Role'
+      Name: !Sub ${AWS::StackName}-rule1
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt StateMachine.Arn
+          Id: !GetAtt StateMachine.Name
+          RoleArn: !GetAtt EventsRuleRole.Arn
+##############################################
+############### Event Rule Role ##############
+##############################################
+  EventsRuleRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: 2012-10-17
         Statement:
-          -
-            Effect: "Allow"
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: events.amazonaws.com
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-statemachineexecutionpolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !GetAtt StateMachine.Arn
+##############################################
+############# Lambda Function 1 ##############
+##############################################
+  Function1:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-function1
+      CodeUri: app/
+      Handler: current_datetime.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Role: !GetAtt FunctionRole.Arn
+##############################################
+############# Lambda Function 2 ##############
+##############################################
+  Function2:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-function2
+      CodeUri: app/
+      Handler: unix_datetime.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Role: !GetAtt FunctionRole.Arn
+##############################################
+############ Lambda Function Role ############
+##############################################
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
             Principal:
               Service:
-                - "glue.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
+                - lambda.amazonaws.com
       ManagedPolicyArns:
-        ['arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole']
-      Policies:
-        -
-          PolicyName: "S3BucketAccessPolicy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              -
-                Effect: "Allow"
-                Action: 
-                  - "s3:GetObject"
-                  - "s3:PutObject"
-                Resource: 
-                  !Join 
-                    - ''
-                    - - !GetAtt CrawlerS3Bucket.Arn
-                      - "*"
- 
-  MyDatabase:
-    Type: 'AWS::Glue::Database'
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: !Ref Database
- 
-  CrawlerS3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: "BucketOwnerFullControl"
- 
-  MyCrawler:
-    Type: 'AWS::Glue::Crawler'
-    Properties:
-      Name: "testcrawler"
-      Role: !GetAtt MyRole.Arn
-      DatabaseName: !Ref MyDatabase
-      Targets:
-        S3Targets:
-          - Path: 
-              !Join
-                - ''
-                - - !Ref CrawlerS3Bucket
-                  - "/"
-
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
 Outputs:
-  ActivityStateMachineArn:
-    Description: "Activity State machine ARN"
-    Value: !Ref StateMachine
-  ActivityStateMachineRoleArn:
-    Description: "IAM Role created for Activity State machine based on the specified SAM Policy Templates"
-    Value: !GetAtt SFRole.Arn
+  StateMachineName:
+    Description: "Activity State machine Name"
+    Value: !GetAtt StateMachine.Name
